@@ -3,7 +3,7 @@
 
 
 -- ============================================
--- STEP 1: CREATE PARTITIONED POSTS TABLE
+-- STEP 1: CREATE A PARTITIONED POSTS TABLE
 -- ============================================
 
 CREATE TABLE posts (
@@ -18,9 +18,12 @@ CREATE TABLE posts (
 CREATE TABLE posts_2025 PARTITION OF posts
   FOR VALUES FROM ('2025-01-01') TO ('2026-01-01');
 
+CREATE TABLE posts_2026 PARTITION OF posts
+  FOR VALUES FROM ('2026-01-01') TO ('2027-01-01');
+
 
 -- ============================================
--- STEP 2: AUTO-MAINTAIN SEARCH VECTOR
+-- STEP 2: AUTO-MAINTAIN THE SEARCH VECTOR
 -- ============================================
 
 CREATE FUNCTION posts_search_update() RETURNS TRIGGER AS $$
@@ -58,6 +61,18 @@ INSERT INTO posts (title, body, metadata, published_at) VALUES
     'Storing flexible data in Postgres.',
     '{"tags":["postgres","jsonb"]}',
     '2025-04-10'
+  ),
+  (
+    'PostgreSQL Performance 2025',
+    'Learning PostgreSQL performance and indexing.',
+    '{"tags":["postgres","performance"]}',
+    '2025-06-15'
+  ),
+  (
+    'PostgreSQL Performance 2026',
+    'New PostgreSQL optimization techniques.',
+    '{"tags":["postgres","optimization"]}',
+    '2026-03-20'
   );
 
 CREATE INDEX idx_posts_meta
@@ -69,7 +84,7 @@ WHERE metadata @> '{"tags":["performance"]}';
 
 
 -- ============================================
--- STEP 4: FULL-TEXT SEARCH
+-- STEP 4: RUN A FULL-TEXT SEARCH
 -- ============================================
 
 SELECT title, ts_rank(search_vec, q) AS rank
@@ -80,11 +95,37 @@ ORDER BY rank DESC;
 
 
 -- ============================================
--- STEP 5: VERIFY OPTIMIZATION
+-- STEP 5: PROVE THE OPTIMIZATIONS WORK
 -- ============================================
 
+-- Check where the records are stored
+SELECT tableoid::regclass AS partition,
+       title,
+       published_at
+FROM posts
+ORDER BY published_at;
+
+
+-- EXPLAIN ANALYZE for 2025
+EXPLAIN ANALYZE
+SELECT title, published_at
+FROM posts
+WHERE published_at >= '2025-01-01'
+  AND published_at < '2026-01-01';
+
+
+-- EXPLAIN ANALYZE for 2026
+EXPLAIN ANALYZE
+SELECT title, published_at
+FROM posts
+WHERE published_at >= '2026-01-01'
+  AND published_at < '2027-01-01';
+
+
+-- EXPLAIN ANALYZE for full-text search with date filtering
 EXPLAIN ANALYZE
 SELECT title
 FROM posts
 WHERE published_at >= '2025-01-01'
+  AND published_at < '2026-01-01'
   AND search_vec @@ to_tsquery('english', 'postgres');
